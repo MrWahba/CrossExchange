@@ -7,39 +7,93 @@ using Moq;
 
 namespace XOProject.Tests
 {
-    public class ShareControllerTests
+    public class ShareControllerTests : ControllerTestBase
     {
-        private readonly Mock<IShareRepository> _shareRepositoryMock = new Mock<IShareRepository>();
 
         private readonly ShareController _shareController;
 
-        public ShareControllerTests()
+        public ShareControllerTests() : base()
         {
-            _shareController = new ShareController(_shareRepositoryMock.Object);
+            _shareController = new ShareController(_shareRepository);
         }
+
+        #region Test Post
 
         [Test]
         public async Task Post_ShouldInsertHourlySharePrice()
         {
+            // Arrange
             var hourRate = new HourlyShareRate
             {
                 Symbol = "CBI",
                 Rate = 330.0M,
                 TimeStamp = new DateTime(2018, 08, 17, 5, 0, 0)
             };
-
-            // Arrange
+            _shareController.ModelState.Clear();
 
             // Act
             var result = await _shareController.Post(hourRate);
 
             // Assert
-            Assert.NotNull(result);
-
-            var createdResult = result as CreatedResult;
-            Assert.NotNull(createdResult);
-            Assert.AreEqual(201, createdResult.StatusCode);
+            Assert.IsTrue(result is CreatedResult);
         }
-        
+
+        [Test]
+        public async Task Post_ShouldInsertFailedHourlySharePriceWhenSymbolMissingAsync()
+        {
+            // Arrange
+            var hourRate = new HourlyShareRate
+            {
+                Rate = 330.0M,
+                TimeStamp = new DateTime(2018, 08, 17, 5, 0, 0)
+            };
+            _shareController.ModelState.AddModelError("Symbol", "Required");
+            // Act
+            var result = await _shareController.Post(hourRate);
+
+            // Assert
+            Assert.IsTrue(result is BadRequestObjectResult);
+        }
+
+        #endregion
+
+        #region Get
+
+
+        [Test]
+        public async Task Get_ShouldReturnsHourlyShareWhenExists()
+        {
+            // Arrange
+            var hourRateSymbol = "CBI";
+            var hourRate = new HourlyShareRate
+            {
+                Symbol = "CBI",
+                Rate = 330.0M,
+                TimeStamp = new DateTime(2018, 08, 17, 5, 0, 0)
+            };
+            await _shareRepository.InsertAsync(hourRate);
+
+            // Act
+            var result = await _shareController.Get(hourRateSymbol);
+
+            // Assert
+            Assert.IsTrue(result is OkObjectResult);
+        }
+
+        [Test]
+        public async Task Get_ShouldReturnsHourlyShareWhenNotExists()
+        {
+            // Arrange
+            var hourRateSymbol = "NA";
+
+            // Act
+            var result = await _shareController.Get(hourRateSymbol);
+
+            // Assert
+            Assert.IsTrue(result is BadRequestResult);
+        }
+
+        #endregion
+
     }
 }

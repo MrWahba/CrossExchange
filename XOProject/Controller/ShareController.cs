@@ -17,32 +17,48 @@ namespace XOProject.Controller
         }
 
         [HttpPut("{symbol}")]
-        public async void UpdateLastPrice([FromRoute]string symbol)
+        public async Task<IActionResult> UpdateLastPrice([FromRoute]string symbol)
         {
-            var share = await _shareRepository.Query().Where(x => x.Symbol.Equals(symbol)).OrderByDescending(x => x.Rate).FirstOrDefaultAsync();
-            share.Rate =+ 10;
-            await _shareRepository.UpdateAsync(share);
+            var shares = await _shareRepository.Query().Where(x => x.Symbol.Equals(symbol)).ToListAsync();
+            if (shares.Count > 0)
+            {
+                var share = shares.OrderByDescending(x => x.Rate).FirstOrDefault();
+                HourlyShareRate _newShare = new HourlyShareRate
+                {
+                    Symbol = share.Symbol,
+                    Rate = share.Rate + 10,
+                    TimeStamp = DateTime.Now
+                };
+                await _shareRepository.InsertAsync(_newShare);
+
+                return Ok();
+            }
+
+            return BadRequest();
         }
 
 
         [HttpGet("{symbol}")]
         public async Task<IActionResult> Get([FromRoute]string symbol)
         {
-            var shares = _shareRepository.Query().Where(x => x.Symbol.Equals(symbol)).ToList();
-            if (shares.Count >= 0)
-            {
+            var shares = await _shareRepository.Query().Where(x => x.Symbol.Equals(symbol)).ToListAsync();
+
+            if (shares.Count > 0)
                 return Ok(shares);
-            }
-            else
-                return BadRequest();
+
+            return BadRequest();
         }
 
 
         [HttpGet("{symbol}/Latest")]
         public async Task<IActionResult> GetLatestPrice([FromRoute]string symbol)
         {
-            var share = await _shareRepository.Query().Where(x => x.Symbol.Equals(symbol)).FirstOrDefaultAsync();
-            return Ok(share?.Rate);
+            var share = await _shareRepository.Query().Where(x => x.Symbol.Equals(symbol))
+                .OrderByDescending(s => s.TimeStamp).FirstOrDefaultAsync();
+
+            if (share != default(HourlyShareRate))
+                return Ok(share?.Rate);
+            return BadRequest(0);
         }
 
         [HttpPost]
@@ -54,9 +70,8 @@ namespace XOProject.Controller
             }
 
             await _shareRepository.InsertAsync(value);
-
             return Created($"Share/{value.Id}", value);
         }
-        
+
     }
 }
